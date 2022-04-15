@@ -298,7 +298,7 @@ namespace sl {
         /// \param useTypicalScan   Use lidar's typical scan mode or use the compatibility mode (2k sps)
         /// \param options          Scan options (please use 0)
         /// \param outUsedScanMode  The scan mode selected by lidar
-        virtual sl_result startScan(bool force, bool useTypicalScan, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr) = 0;
+        virtual sl_result startScan(bool force, bool useTypicalScan, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u16 motor_speed = 600) = 0;
 
         /// Start scan in specific mode
         ///
@@ -306,7 +306,7 @@ namespace sl {
         /// \param scanMode         The scan mode id (use getAllSupportedScanModes to get supported modes)
         /// \param options          Scan options (please use 0)
         /// \param outUsedScanMode  The scan mode selected by lidar
-        virtual sl_result startScanExpress(bool force, sl_u16 scanMode, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u32 timeout = DEFAULT_TIMEOUT) = 0;
+        virtual sl_result startScanExpress(bool force, sl_u16 scanMode, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u32 timeout = DEFAULT_TIMEOUT, sl_u16 motor_speed = 600) = 0;
 
         /// Retrieve the health status of the RPLIDAR
         /// The host system can use this operation to check whether RPLIDAR is in the self-protection mode.

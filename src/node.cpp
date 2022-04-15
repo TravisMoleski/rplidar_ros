@@ -36,6 +36,7 @@
 #include "sensor_msgs/LaserScan.h"
 #include "std_srvs/Empty.h"
 #include "sl_lidar.h" 
+#include "time.h"
 
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
@@ -161,7 +162,7 @@ bool stop_motor(std_srvs::Empty::Request &req,
   if(!drv)
        return false;
 
-  ROS_DEBUG("Stop motor");
+  ROS_INFO("Stop motor");
   drv->setMotorSpeed(0);
   return true;
 }
@@ -169,11 +170,12 @@ bool stop_motor(std_srvs::Empty::Request &req,
 bool start_motor(std_srvs::Empty::Request &req,
                                std_srvs::Empty::Response &res)
 {
+  ROS_INFO("IN START MOTOR...");
   if(!drv)
        return false;
   if(drv->isConnected())
   {
-      ROS_DEBUG("Start motor");
+      ROS_INFO("Start motor");
       sl_result ans=drv->setMotorSpeed();
   
       ans=drv->startScan(0,1);
@@ -219,11 +221,15 @@ int main(int argc, char * argv[]) {
     nh_private.param<bool>("inverted", inverted, false);
     nh_private.param<bool>("angle_compensate", angle_compensate, false);
     nh_private.param<std::string>("scan_mode", scan_mode, std::string());
+
+    sl_u16 motor_speed;
+
     if(channel_type == "udp"){
         nh_private.param<float>("scan_frequency", scan_frequency, 20.0);
     }
     else{
-        nh_private.param<float>("scan_frequency", scan_frequency, 10.0);
+        nh_private.param<float>("scan_frequency", scan_frequency, 5.0);
+        motor_speed = scan_frequency * 60;
     }
 
     int ver_major = SL_LIDAR_SDK_VERSION_MAJOR;
@@ -273,12 +279,22 @@ int main(int argc, char * argv[]) {
     ros::ServiceServer start_motor_service = nh.advertiseService("start_motor", start_motor);
 
     //start lidar rotate
-    drv->setMotorSpeed();
+    ROS_INFO("TRYING TO START MOTOR...");
+    drv->setMotorSpeed(motor_speed);
+    ROS_INFO("MOTOR START...");
+    ROS_INFO("MOTOR SPEED: %d", motor_speed);
+
+    ROS_INFO("Little sleep after motor start...");
+    ros::Duration(2).sleep();
+
 
     LidarScanMode current_scan_mode;
     if (scan_mode.empty()) {
-        op_result = drv->startScan(false /* not force scan */, true /* use typical scan mode */, 0, &current_scan_mode);
+        ROS_INFO("STARTING NORMAL SCAN...");
+        op_result = drv->startScan(false /* not force scan */, true /* use typical scan mode */, 0, &current_scan_mode, motor_speed);
+        ROS_INFO("NORMAL SCAN COMPLETE...");
     } else {
+        ROS_INFO("NOT NORMAL SCAN");
         std::vector<LidarScanMode> allSupportedScanModes;
         op_result = drv->getAllSupportedScanModes(allSupportedScanModes);
 
@@ -299,7 +315,8 @@ int main(int argc, char * argv[]) {
                 }
                 op_result = SL_RESULT_OPERATION_FAIL;
             } else {
-                op_result = drv->startScanExpress(false /* not force scan */, selectedScanMode, 0, &current_scan_mode);
+                ROS_INFO("MOTOR SPEED FOR EXPRESS SCAN: %d", motor_speed);
+                op_result = drv->startScanExpress(false /* not force scan */, selectedScanMode, 0, &current_scan_mode, motor_speed);
             }
         }
     }
@@ -312,7 +329,7 @@ int main(int argc, char * argv[]) {
         if(angle_compensate_multiple < 1) 
           angle_compensate_multiple = 1.0;
         max_distance = (float)current_scan_mode.max_distance;
-        ROS_INFO("current scan mode: %s, sample rate: %d Khz, max_distance: %.1f m, scan frequency:%.1f Hz, ", current_scan_mode.scan_mode,(int)(1000/current_scan_mode.us_per_sample+0.5),max_distance, scan_frequency); 
+        ROS_INFO("current scan mode: %s, sample rate: %d Khz, max_distance: %.1f m, scan frequency: %.1f Hz, ", current_scan_mode.scan_mode,(int)(1000/current_scan_mode.us_per_sample+0.5),max_distance, scan_frequency); 
     }
     else
     {
@@ -321,15 +338,21 @@ int main(int argc, char * argv[]) {
 
     ros::Time start_scan_time;
     ros::Time end_scan_time;
-    double scan_duration;
+    float scan_duration;
+
     while (ros::ok()) {
+        // time_t start_time = time(0);
         sl_lidar_response_measurement_node_hq_t nodes[8192];
         size_t   count = _countof(nodes);
 
         start_scan_time = ros::Time::now();
+        // ROS_INFO("SCAN START %d \n", start_scan_time);
         op_result = drv->grabScanDataHq(nodes, count);
         end_scan_time = ros::Time::now();
+        // ROS_INFO("SCAN END %d \n", end_scan_time);
         scan_duration = (end_scan_time - start_scan_time).toSec();
+
+        ROS_INFO("SCAN FREQUENCY %f", 1 / scan_duration);
 
         if (op_result == SL_RESULT_OK) {
             op_result = drv->ascendScanData(nodes, count);
@@ -389,8 +412,8 @@ int main(int argc, char * argv[]) {
                              angle_min, angle_max, max_distance,
                              frame_id);
             }
-        }
 
+        }            
         ros::spinOnce();
     }
 

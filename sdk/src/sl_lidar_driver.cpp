@@ -344,11 +344,12 @@ namespace sl {
     
         }
 
-        sl_result startScan(bool force, bool useTypicalScan, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr)
+        sl_result startScan(bool force, bool useTypicalScan, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u16 motor_speed = 600)
         {
+            printf("START SCAN MOTOR SPEED %d \n", motor_speed);
             Result<nullptr_t> ans = SL_RESULT_OK;
             bool ifSupportLidarConf = false;
-            startMotor();
+            setMotorSpeed(motor_speed);
             ans = checkSupportConfigCommands(ifSupportLidarConf);
             if (!ans) return ans;
             if (useTypicalScan){
@@ -357,7 +358,8 @@ namespace sl {
                 if (!ans) return ans;
 
                 //call startScanExpress to do the job
-                return startScanExpress(false, typicalMode, 0, outUsedScanMode);
+                printf("CALLING EXPRESS... with MS %d \n", motor_speed);
+                return startScanExpress(false, typicalMode, 0, outUsedScanMode, DEFAULT_TIMEOUT, motor_speed);
             }
 
             // 'useTypicalScan' is false, just use normal scan mode
@@ -375,17 +377,18 @@ namespace sl {
                 }
             }
 
-            return startScanNormal(force);
+            return startScanNormal(force, DEFAULT_TIMEOUT, motor_speed);
         }
 
-        sl_result startScanNormal(bool force, sl_u32 timeout = DEFAULT_TIMEOUT)
+        sl_result startScanNormal(bool force, sl_u32 timeout = DEFAULT_TIMEOUT, sl_u16 motor_speed = 600)
         {
+            printf("START SCAN NORMAL SPEED %d \n", motor_speed);
             Result<nullptr_t> ans = SL_RESULT_OK;
             if (!isConnected()) return SL_RESULT_OPERATION_FAIL;
             if (_isScanning) return SL_RESULT_ALREADY_DONE;
 
             stop(); //force the previous operation to stop
-            setMotorSpeed();
+            setMotorSpeed(motor_speed);
             {
                 rp::hal::AutoLocker l(_lock);
                 ans = _sendCommand(force ? SL_LIDAR_CMD_FORCE_SCAN : SL_LIDAR_CMD_SCAN);
@@ -413,8 +416,9 @@ namespace sl {
             return SL_RESULT_OK;
         }
 
-        sl_result startScanExpress(bool force, sl_u16 scanMode, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u32 timeout = DEFAULT_TIMEOUT)
+        sl_result startScanExpress(bool force, sl_u16 scanMode, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr, sl_u32 timeout = DEFAULT_TIMEOUT, sl_u16 motor_speed = 600)
         {
+            printf("START EXPRESS SCAN SPEED %d \n", motor_speed);
             Result<nullptr_t> ans = SL_RESULT_OK;
             if (!isConnected()) return SL_RESULT_OPERATION_FAIL;
             if (_isScanning) return SL_RESULT_ALREADY_DONE;
@@ -442,7 +446,6 @@ namespace sl {
 
 
                 }
-
             }
 
             //get scan answer type to specify how to wait data
@@ -461,7 +464,7 @@ namespace sl {
             {
                 rp::hal::AutoLocker l(_lock);
 
-                startMotor();
+                setMotorSpeed(motor_speed);
                 sl_lidar_payload_express_scan_t scanReq;
                 memset(&scanReq, 0, sizeof(scanReq));
                 if (!ifSupportLidarConf){
@@ -628,6 +631,7 @@ namespace sl {
         {
             float sample_duration = scanMode.us_per_sample;
             frequency = 1000000.0f / (count * sample_duration);
+            // printf("FREQUENCY CHECK... %f", frequency);
             return SL_RESULT_OK;
         }
 
@@ -694,8 +698,9 @@ namespace sl {
 
             return SL_RESULT_OK;
         }
-        sl_result setMotorSpeed(sl_u16 speed = DEFAULT_MOTOR_SPEED)
+        sl_result setMotorSpeed(sl_u16 speed = 600)
         {
+            printf("SET MOTOR SPEED %d \n", speed);
             Result<nullptr_t> ans = SL_RESULT_OK;
             
             if(speed == DEFAULT_MOTOR_SPEED){
@@ -710,16 +715,20 @@ namespace sl {
             switch (_isSupportingMotorCtrl)
             {
             case MotorCtrlSupportNone:
+                printf("NO MOTOR CONTROL SUPPORT... \n");
                 break;
             case MotorCtrlSupportPwm:
+                printf("PWM CASE ... \n");
                 sl_lidar_payload_motor_pwm_t motor_pwm;
                 motor_pwm.pwm_value = speed;
                 ans = _sendCommand(SL_LIDAR_CMD_SET_MOTOR_PWM, (const sl_u8 *)&motor_pwm, sizeof(motor_pwm));
                 if (!ans) return ans;
                 break;
             case MotorCtrlSupportRpm:
+                printf("RPM CASE ... \n");
                 sl_lidar_payload_motor_pwm_t motor_rpm;
                 motor_rpm.pwm_value = speed;
+                printf("SENDING SPEED TO MOTOR... %d \n", motor_rpm.pwm_value);
                 ans = _sendCommand(SL_LIDAR_CMD_HQ_MOTOR_SPEED_CTRL, (const sl_u8 *)&motor_rpm, sizeof(motor_rpm));
                 if (!ans) return ans;
                 break;
