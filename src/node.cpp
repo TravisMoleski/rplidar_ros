@@ -77,7 +77,11 @@ void publish_scan(ros::Publisher *pub,
     scan_msg.scan_time = scan_time;
     scan_msg.time_increment = scan_time / (double)(node_count-1);
     scan_msg.range_min = 0.15;
-    scan_msg.range_max = max_distance;//8.0;
+    if (max_distance == 0.0)
+        scan_msg.range_max = 6.0;//8.0;
+    else
+        scan_msg.range_max = max_distance;
+    // scan_msg.range_max = 8;//8.0;
 
     scan_msg.intensities.resize(node_count);
     scan_msg.ranges.resize(node_count);
@@ -221,16 +225,18 @@ int main(int argc, char * argv[]) {
     nh_private.param<bool>("inverted", inverted, false);
     nh_private.param<bool>("angle_compensate", angle_compensate, false);
     nh_private.param<std::string>("scan_mode", scan_mode, std::string());
+    nh_private.param<float>("scan_frequency", scan_frequency, 10.0);
 
-    sl_u16 motor_speed;
+    sl_u16 motor_speed = 60 * scan_frequency;
 
-    if(channel_type == "udp"){
-        nh_private.param<float>("scan_frequency", scan_frequency, 20.0);
-    }
-    else{
-        nh_private.param<float>("scan_frequency", scan_frequency, 5.0);
-        motor_speed = scan_frequency * 60;
-    }
+    // if(channel_type == "udp"){
+    //     nh_private.param<float>("scan_frequency", scan_frequency, 20.0);
+    // }
+    // else{
+    //     nh_private.param<float>("scan_frequency", scan_frequency, 15.0);
+    //     motor_speed = scan_frequency * 60;
+    //     // motor_speed = 600;
+    // }
 
     int ver_major = SL_LIDAR_SDK_VERSION_MAJOR;
     int ver_minor = SL_LIDAR_SDK_VERSION_MINOR;
